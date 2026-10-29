@@ -5,7 +5,8 @@ import { importCustomers, updateCustomer, deleteCustomer } from "@/lib/data/repo
 import { normalizePhone } from "@/lib/phone";
 import {
   IMPORT_MAX_BYTES,
-  parseContactsXlsx,
+  isContactsImportFilename,
+  parseContactsFile,
 } from "@/lib/customers/import-xlsx";
 import { requirePermission } from "@/lib/guard";
 
@@ -24,23 +25,26 @@ export async function importContactsAction(
 
   const file = formData.get("file");
   if (!(file instanceof File) || file.size === 0) {
-    return { ok: false, error: "Choose an Excel (.xlsx) file to import." };
+    return { ok: false, error: "Choose an Excel (.xlsx) or Mailchimp CSV file to import." };
   }
   if (file.size > IMPORT_MAX_BYTES) {
     return { ok: false, error: "File is too large. Maximum size is 2 MB." };
   }
-  const name = file.name.toLowerCase();
-  if (!name.endsWith(".xlsx")) {
-    return { ok: false, error: "Use the Excel template (.xlsx)." };
+  const name = file.name;
+  if (!isContactsImportFilename(name)) {
+    return { ok: false, error: "Use the Excel template (.xlsx) or a Mailchimp audience CSV." };
   }
 
   const buffer = Buffer.from(await file.arrayBuffer());
   let parsed;
   try {
-    parsed = await parseContactsXlsx(buffer);
+    parsed = await parseContactsFile(buffer, name);
   } catch (e) {
     console.error("[customers:import] parse failed", e);
-    return { ok: false, error: "Could not read that spreadsheet. Download the template and try again." };
+    return {
+      ok: false,
+      error: "Could not read that file. Use the Excel template or a Mailchimp CSV export.",
+    };
   }
 
   if (parsed.rows.length === 0 && parsed.skipped.length === 0) {

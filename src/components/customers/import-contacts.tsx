@@ -28,7 +28,7 @@ function ImportContactsModal({ onClose }: { onClose: () => void }) {
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (!file) {
-      setResult({ ok: false, error: "Choose an Excel (.xlsx) file to import." });
+      setResult({ ok: false, error: "Choose an Excel (.xlsx) or Mailchimp CSV file to import." });
       return;
     }
     setBusy(true);
@@ -57,8 +57,10 @@ function ImportContactsModal({ onClose }: { onClose: () => void }) {
           Import contacts
         </h2>
         <p className="mt-1 text-sm text-muted">
-          Upload an Excel file. Matching phone numbers update the existing
-          profile; new numbers are added with pending consent and tagged{" "}
+          Upload our Excel template or a Mailchimp audience CSV (the same file
+          Mailchimp exports / uses to import contacts). Matching phone numbers
+          update the existing profile; new numbers are added with pending
+          consent and tagged{" "}
           <span className="font-medium text-foreground">Internal</span> so you
           can tell them apart from voucher signups.
         </p>
@@ -74,11 +76,13 @@ function ImportContactsModal({ onClose }: { onClose: () => void }) {
 
         <form onSubmit={onSubmit} className="mt-4 space-y-3">
           <label className="block">
-            <span className="mb-1.5 block text-xs font-medium text-muted">Excel file (.xlsx)</span>
+            <span className="mb-1.5 block text-xs font-medium text-muted">
+              Excel (.xlsx) or Mailchimp CSV
+            </span>
             <input
               ref={inputRef}
               type="file"
-              accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+              accept=".xlsx,.csv,text/csv,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
               onChange={(e) => {
                 setFile(e.target.files?.[0] ?? null);
                 setResult(null);
