@@ -239,6 +239,46 @@ export type CustomerImportResult = {
   failed: { row: number; reason: string }[];
 };
 
+type ExistingImportRow = {
+  id: string;
+  tags: unknown;
+  email: string | null;
+  city: string | null;
+  birth_date: string | null;
+};
+
+async function findExistingImportCustomer(
+  supabase: Awaited<ReturnType<typeof createSupabaseServerClient>>,
+  row: CustomerImportInput,
+): Promise<{
+  row: ExistingImportRow | null;
+  matchedBy: "phone" | "email" | null;
+  error?: string;
+}> {
+  const byPhone = await supabase
+    .from("customers")
+    .select("id, tags, email, city, birth_date")
+    .eq("wa_id", row.waId)
+    .maybeSingle();
+  if (byPhone.error) {
+    return { row: null, matchedBy: null, error: byPhone.error.message };
+  }
+  if (byPhone.data) return { row: byPhone.data, matchedBy: "phone" };
+
+  if (!row.email) return { row: null, matchedBy: null };
+
+  const byEmail = await supabase
+    .from("customers")
+    .select("id, tags, email, city, birth_date")
+    .ilike("email", row.email)
+    .limit(1);
+  if (byEmail.error) {
+    return { row: null, matchedBy: null, error: byEmail.error.message };
+  }
+  const hit = byEmail.data?.[0] ?? null;
+  return { row: hit, matchedBy: hit ? "email" : null };
+}
+
 export async function importCustomers(
   rows: CustomerImportInput[],
 ): Promise<CustomerImportResult> {
@@ -249,13 +289,22 @@ export async function importCustomers(
 
   if (!shouldUseSupabaseData()) {
     for (const [i, row] of rows.entries()) {
+      const email = row.email?.trim().toLowerCase() ?? "";
       const existing = DEMO_CUSTOMERS.find(
-        (c) => c.waId === row.waId || c.phone.replace(/\D/g, "") === row.waId,
+        (c) =>
+          c.waId === row.waId ||
+          c.phone.replace(/\D/g, "") === row.waId ||
+          (email !== "" && c.email?.trim().toLowerCase() === email),
       );
       if (existing) {
+        const matchedByPhone =
+          existing.waId === row.waId ||
+          existing.phone.replace(/\D/g, "") === row.waId;
         existing.name = row.name;
-        existing.phone = row.phone;
-        existing.waId = row.waId;
+        if (matchedByPhone) {
+          existing.phone = row.phone;
+          existing.waId = row.waId;
+        }
         if (row.email) existing.email = row.email;
         if (row.city) existing.city = row.city;
         if (row.birthDate) existing.birthDate = row.birthDate;
@@ -291,33 +340,32 @@ export async function importCustomers(
   const supabase = await createSupabaseServerClient();
   for (const row of rows) {
     const line = row.row;
-    const { data: existing, error: lookupError } = await supabase
-      .from("customers")
-      .select("id, tags, email, city, birth_date")
-      .eq("wa_id", row.waId)
-      .maybeSingle();
-    if (lookupError) {
-      failed.push({ row: line, reason: lookupError.message });
+    const existing = await findExistingImportCustomer(supabase, row);
+    if (existing.error) {
+      failed.push({ row: line, reason: existing.error });
       continue;
     }
 
     const tags = mergeImportedCustomerTags(
-      Array.isArray(existing?.tags) ? (existing.tags as string[]) : [],
+      Array.isArray(existing.row?.tags) ? (existing.row.tags as string[]) : [],
       row.tags,
     );
 
-    if (existing) {
+    if (existing.row) {
+      const matchedByPhone = existing.matchedBy === "phone";
       const { error } = await supabase
         .from("customers")
         .update({
           name: row.name,
-          phone: row.phone,
-          email: row.email ?? existing.email,
-          city: row.city ?? existing.city,
-          birth_date: row.birthDate ?? existing.birth_date,
+          ...(matchedByPhone
+            ? { phone: row.phone, wa_id: row.waId }
+            : {}),
+          email: row.email ?? existing.row.email,
+          city: row.city ?? existing.row.city,
+          birth_date: row.birthDate ?? existing.row.birth_date,
           tags,
         })
-        .eq("id", existing.id);
+        .eq("id", existing.row.id);
       if (error) {
         failed.push({ row: line, reason: error.message });
         continue;

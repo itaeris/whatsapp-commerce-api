@@ -110,12 +110,13 @@ function composeName(raw: Record<string, string>): string {
     .trim();
 }
 
-/** Mailchimp mashed address: `154 Example Dr.  Hendersonville  NC  28792  US` */
+/** Mailchimp mashed address: `154 Example Dr.  Hendersonville  NC  28792  US` or `Jakarta  ID`. */
 function cityFromMailchimpAddress(address: string): string | null {
   const parts = address
     .split(/\s{2,}/)
     .map((p) => p.trim())
     .filter(Boolean);
+  if (parts.length === 2 && /^[A-Z]{2}$/.test(parts[1])) return parts[0];
   if (parts.length < 3) return null;
   for (let i = 1; i < parts.length - 1; i++) {
     const next = parts[i + 1] ?? "";
@@ -282,7 +283,8 @@ function parseMappedRows(
 
   const rows: ParsedImportRow[] = [];
   const skipped: { row: number; reason: string }[] = [];
-  const seen = new Set<string>();
+  const seenPhone = new Set<string>();
+  const seenEmail = new Set<string>();
 
   for (const { row: rowNumber, raw } of records) {
     const name = composeName(raw);
@@ -304,20 +306,26 @@ function parseMappedRows(
       });
       continue;
     }
-    if (seen.has(normalized.waId)) {
+    if (seenPhone.has(normalized.waId)) {
       skipped.push({ row: rowNumber, reason: "Duplicate phone in this file." });
-      continue;
-    }
-    seen.add(normalized.waId);
-
-    if (rows.length >= IMPORT_MAX_ROWS) {
-      skipped.push({ row: rowNumber, reason: `Over the ${IMPORT_MAX_ROWS}-row limit.` });
       continue;
     }
 
     const email = emailRaw ? parseEmail(emailRaw) : null;
     if (emailRaw && !email) {
       skipped.push({ row: rowNumber, reason: "Email looks invalid." });
+      continue;
+    }
+    if (email && seenEmail.has(email)) {
+      skipped.push({ row: rowNumber, reason: "Duplicate email in this file." });
+      continue;
+    }
+
+    seenPhone.add(normalized.waId);
+    if (email) seenEmail.add(email);
+
+    if (rows.length >= IMPORT_MAX_ROWS) {
+      skipped.push({ row: rowNumber, reason: `Over the ${IMPORT_MAX_ROWS}-row limit.` });
       continue;
     }
 

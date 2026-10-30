@@ -5,26 +5,34 @@ import { ChevronDown, Download } from "lucide-react";
 import { Button } from "@/components/ui";
 import { cn } from "@/lib/utils";
 
-const OPTIONS = [
+const EXCEL_OPTIONS = [
   {
     source: "all",
     label: "All customers",
-    hint: "Imports, fisik cards, and Form Digital",
+    hint: "Excel · imports, fisik cards, and Form Digital",
   },
   {
     source: "internal",
     label: "Internal (uploaded)",
-    hint: "Excel imports only",
+    hint: "Excel · imported lists only",
   },
   {
     source: "voucher",
     label: "Voucher (fisik)",
-    hint: "QR card /daftar signups",
+    hint: "Excel · QR card /daftar signups",
   },
   {
     source: "form_digital",
     label: "Form Digital",
-    hint: "Social share-link signups",
+    hint: "Excel · social share-link signups",
+  },
+] as const;
+
+const MAILCHIMP_OPTIONS = [
+  {
+    source: "all",
+    label: "Mailchimp audience",
+    hint: "CSV Mailchimp import (Email, Name, Phone, Tags, Birthday)",
   },
 ] as const;
 
@@ -66,7 +74,24 @@ export function ExportContactsButton() {
           role="menu"
           className="absolute right-0 z-30 mt-1.5 w-72 overflow-hidden rounded-xl border border-border bg-surface py-1 shadow-[0_12px_40px_rgba(45,43,42,0.12)]"
         >
-          {OPTIONS.map((opt) => (
+          {MAILCHIMP_OPTIONS.map((opt) => (
+            <a
+              key={`mailchimp-${opt.source}`}
+              role="menuitem"
+              href="/customers/export?format=mailchimp"
+              className="block px-3 py-2.5 text-left transition hover:bg-surface-muted"
+              onClick={() => setOpen(false)}
+            >
+              <span className="block text-sm font-medium text-foreground">
+                {opt.label}
+              </span>
+              <span className="mt-0.5 block text-[11px] leading-snug text-muted">
+                {opt.hint}
+              </span>
+            </a>
+          ))}
+          <div className="my-1 border-t border-border" />
+          {EXCEL_OPTIONS.map((opt) => (
             <a
               key={opt.source}
               role="menuitem"

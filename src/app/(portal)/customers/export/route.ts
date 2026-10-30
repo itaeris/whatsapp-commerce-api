@@ -7,6 +7,10 @@ import {
   customerExportFilename,
   type CustomerExportSource,
 } from "@/lib/customers/export-xlsx";
+import {
+  buildMailchimpAudienceCsv,
+  mailchimpExportFilename,
+} from "@/lib/customers/export-mailchimp";
 
 function parseSource(raw: string | null): CustomerExportSource {
   if (raw === "internal" || raw === "voucher" || raw === "form_digital") {
@@ -18,6 +22,20 @@ function parseSource(raw: string | null): CustomerExportSource {
 export async function GET(req: NextRequest) {
   await requirePermission("customers.pii");
   const source = parseSource(req.nextUrl.searchParams.get("source"));
+  const format = req.nextUrl.searchParams.get("format");
+
+  if (format === "mailchimp") {
+    const customers = await listCustomers();
+    const csv = buildMailchimpAudienceCsv(customers, source);
+    const filename = mailchimpExportFilename(source);
+    return new NextResponse(csv, {
+      headers: {
+        "Content-Type": "text/csv; charset=utf-8",
+        "Content-Disposition": `attachment; filename="${filename}"`,
+        "Cache-Control": "private, no-store",
+      },
+    });
+  }
 
   const fromApi = await exportCustomersFromApi(source);
   if (fromApi) {
